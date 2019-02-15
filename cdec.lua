@@ -15,6 +15,9 @@ ffi.cdef [[
     ssize_t write(int fd, const void* buf, size_t count);
     ssize_t read(int fd, void* buf, size_t count);
 
+    typedef int mode_t;
+    int mkdir(const char* pathname, mode_t mode);
+
     int mount(const char* source, const char* target,
               const char* filesystemtype, unsigned long mountflags,
               const void* data);

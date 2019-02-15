@@ -1,4 +1,5 @@
 require "cdec"
+local cgroup = require "cgroup"
 local const = require "const"
 local ffi = require "ffi"
 
@@ -11,7 +12,8 @@ local function set_hostname(conf)
     return ffi.C.sethostname(name, len)
 end
 
-local function set_mapping(conf, pid)
+local function set_mapping(conf)
+    local pid = conf.pid
     if conf.uid then
         local f = io.open("/proc/" .. pid .. "/uid_map", "w")
         f:write(conf.uid)
@@ -27,6 +29,11 @@ local function set_mapping(conf, pid)
     end
 end
 
+local function set_cgroups(conf)
+    -- TODO: Create new cgroup, add this process into it
+    --       and set limits/settings according to conf.
+end
+
 local function set_mounts(conf)
     -- Prevents propagating of mount changes.
     if ffi.C.mount(nil, "/", nil,
@@ -39,7 +46,13 @@ local function set_mounts(conf)
         -- TODO: Mount + pivot_root + chdir.
     end
 
-    return ffi.C.mount("proc", "/proc", "proc", 0, nil)
+    if ffi.C.mount("proc", "/proc", "proc", 0, nil) ~= 0 then
+        error("Failed to remount /proc.")
+    end
+
+    -- TODO: Remount cgroups or use the old cgroups?
+
+    return 0
 end
 
 -- Callback invoked by clone().
@@ -69,7 +82,13 @@ function cont.spawn(conf, flags)
     local stack = ffi.new("uint8_t[?]", stack_size)
 
     local pid = ffi.C.clone(launchpad, stack + stack_size, flags, nil)
-    set_mapping(conf, pid)
+
+    -- Used for cgroup management.
+    cont.conf.pid = pid
+
+    set_mapping(conf)
+    set_cgroups(conf)
+
     conf.pipe:write()
 
     return pid
